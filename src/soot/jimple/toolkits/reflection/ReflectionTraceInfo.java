@@ -96,45 +96,57 @@ public class ReflectionTraceInfo {
 							}
 							receiverNames.add(target);
 						} else if(kind.equals("Method.invoke")) {
-							if(!Scene.v().containsMethod(target)) {
-								throw new RuntimeException("Unknown method for signature: "+target);
+							//if(!Scene.v().containsMethod(target)) {
+								//throw new RuntimeException("Unknown method for signature: "+target);
+							//}
+							if(Scene.v().containsMethod(target)) {
+								Set<String> receiverNames;
+								if((receiverNames=methodInvokeReceivers.get(sourceMethod))==null) {
+									methodInvokeReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
+								}
+								receiverNames.add(target);	
+							} else {
+								G.v().out.println("CHORD: Scene does not contain target method: " + target);
 							}
-							
-							Set<String> receiverNames;
-							if((receiverNames=methodInvokeReceivers.get(sourceMethod))==null) {
-								methodInvokeReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
-							}
-							receiverNames.add(target);								
 						} else if (kind.equals("Constructor.newInstance")) {
-							if(!Scene.v().containsMethod(target)) {
-								throw new RuntimeException("Unknown method for signature: "+target);
+							//if(!Scene.v().containsMethod(target)) {
+								//throw new RuntimeException("Unknown method for signature: "+target);
+							//}
+							if(Scene.v().containsMethod(target)) {
+								Set<String> receiverNames;
+								if((receiverNames=constructorNewInstanceReceivers.get(sourceMethod))==null) {
+									constructorNewInstanceReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
+								}
+								receiverNames.add(target);	
+							} else {
+								G.v().out.println("CHORD: Scene does not contain target method: " + target);
 							}
-							
-							Set<String> receiverNames;
-							if((receiverNames=constructorNewInstanceReceivers.get(sourceMethod))==null) {
-								constructorNewInstanceReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
-							}
-							receiverNames.add(target);								
 						} else if (kind.equals("Field.set*")) {
-							if(!Scene.v().containsField(target)) {
-								throw new RuntimeException("Unknown method for signature: "+target);
+							//if(!Scene.v().containsField(target)) {
+								//throw new RuntimeException("Unknown method for signature: "+target);
+							//}
+							if(Scene.v().containsField(target)) {
+								Set<String> receiverNames;
+								if((receiverNames=fieldSetReceivers.get(sourceMethod))==null) {
+									fieldSetReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
+								}
+								receiverNames.add(target);	
+							} else {
+								G.v().out.println("CHORD: Scene does not contain target field: " + target);
 							}
-							
-							Set<String> receiverNames;
-							if((receiverNames=fieldSetReceivers.get(sourceMethod))==null) {
-								fieldSetReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
-							}
-							receiverNames.add(target);								
 						} else if (kind.equals("Field.get*")) {
+							//if(!Scene.v().containsField(target)) {
+								//throw new RuntimeException("Unknown method for signature: "+target);
+							//}
 							if(!Scene.v().containsField(target)) {
-								throw new RuntimeException("Unknown method for signature: "+target);
+								Set<String> receiverNames;
+								if((receiverNames=fieldGetReceivers.get(sourceMethod))==null) {
+									fieldGetReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
+								}
+								receiverNames.add(target);	
+							} else {
+								G.v().out.println("CHORD: Scene does not contain target field: " + target);
 							}
-							
-							Set<String> receiverNames;
-							if((receiverNames=fieldGetReceivers.get(sourceMethod))==null) {
-								fieldGetReceivers.put(sourceMethod, receiverNames = new LinkedHashSet<String>());
-							}
-							receiverNames.add(target);								
 						} else {
 							ignoredKinds.add(kind);
 						}							
@@ -159,16 +171,19 @@ public class ReflectionTraceInfo {
 	private Set<SootMethod> inferSource(String source, int lineNumber) {
 		String className = source.substring(0,source.lastIndexOf("."));
 		String methodName = source.substring(source.lastIndexOf(".")+1);
+		Set<SootMethod> methodsWithRightName = new LinkedHashSet<SootMethod>();
 		if(!Scene.v().containsClass(className)) {
 			Scene.v().addBasicClass(className, SootClass.BODIES);
 			Scene.v().loadBasicClasses();
 			if(!Scene.v().containsClass(className)) {
-				throw new RuntimeException("Trace file refers to unknown class: "+className);
+				//throw new RuntimeException("Trace file refers to unknown class: "+className);
+				G.v().out.println("CHORD: Scene does not contain class: " + className);
+				return methodsWithRightName;
 			}
 		}
 
 		SootClass sootClass = Scene.v().getSootClass(className);
-		Set<SootMethod> methodsWithRightName = new LinkedHashSet<SootMethod>();
+		//Set<SootMethod> methodsWithRightName = new LinkedHashSet<SootMethod>();
 		for (SootMethod m: sootClass.getMethods()) {
 			if(m.isConcrete() && m.getName().equals(methodName)) {
 				methodsWithRightName.add(m);
@@ -176,7 +191,9 @@ public class ReflectionTraceInfo {
 		} 
 
 		if(methodsWithRightName.isEmpty()) {
-			throw new RuntimeException("Trace file refers to unknown method with name "+methodName+" in Class "+className);
+			//throw new RuntimeException("Trace file refers to unknown method with name "+methodName+" in Class "+className);
+			G.v().out.println("CHORD: Could not find any method with name: " + methodName + " in class " + className);
+			return methodsWithRightName;
 		} else if(methodsWithRightName.size()==1) {
 			return Collections.singleton(methodsWithRightName.iterator().next());
 		} else {

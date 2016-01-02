@@ -537,18 +537,18 @@ public class ReflectiveCallsInliner extends SceneTransformer {
 			
 			SootMethod constructor = Scene.v().getMethod(target);
 			paramLocals = new Local[constructor.getParameterCount()];
+			//argArrayLocal = @parameter-0
+			ArrayType arrayType = ArrayType.v(RefType.v("java.lang.Object"),1);
+			Local argArrayLocal = localGen.generateLocal(arrayType);
+			newUnits.add(Jimple.v().newIdentityStmt(argArrayLocal, Jimple.v().newParameterRef(arrayType, 0)));
 			if(constructor.getParameterCount()>0) {
-				//argArrayLocal = @parameter-0
-				ArrayType arrayType = ArrayType.v(RefType.v("java.lang.Object"),1);
-				Local argArrayLocal = localGen.generateLocal(arrayType);
-				newUnits.add(Jimple.v().newIdentityStmt(argArrayLocal, Jimple.v().newParameterRef(arrayType, 0)));
 				int i=0;
 				for(Type paramType: ((Collection<Type>)constructor.getParameterTypes())) {
 					paramLocals[i] = localGen.generateLocal(paramType);
 					unboxParameter(argArrayLocal, i, paramLocals, paramType, newUnits, localGen);
 					i++;
 				}
-			} 
+			}
 			RefType targetType = constructor.getDeclaringClass().getType();
 			freshLocal = localGen.generateLocal(targetType);
 			replacement = Jimple.v().newNewExpr(targetType);
