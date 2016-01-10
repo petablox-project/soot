@@ -106,7 +106,7 @@ public class ReflectionTraceInfo {
 								}
 								receiverNames.add(target);	
 							} else {
-								G.v().out.println("CHORD: Scene does not contain target method: " + target);
+								G.v().out.println("PETABLOX: Scene does not contain target method: " + target);
 							}
 						} else if (kind.equals("Constructor.newInstance")) {
 							//if(!Scene.v().containsMethod(target)) {
@@ -119,7 +119,7 @@ public class ReflectionTraceInfo {
 								}
 								receiverNames.add(target);	
 							} else {
-								G.v().out.println("CHORD: Scene does not contain target method: " + target);
+								G.v().out.println("PETABLOX: Scene does not contain target method: " + target);
 							}
 						} else if (kind.equals("Field.set*")) {
 							//if(!Scene.v().containsField(target)) {
@@ -132,7 +132,7 @@ public class ReflectionTraceInfo {
 								}
 								receiverNames.add(target);	
 							} else {
-								G.v().out.println("CHORD: Scene does not contain target field: " + target);
+								G.v().out.println("PETABLOX: Scene does not contain target field: " + target);
 							}
 						} else if (kind.equals("Field.get*")) {
 							//if(!Scene.v().containsField(target)) {
@@ -145,7 +145,7 @@ public class ReflectionTraceInfo {
 								}
 								receiverNames.add(target);	
 							} else {
-								G.v().out.println("CHORD: Scene does not contain target field: " + target);
+								G.v().out.println("PETABLOX: Scene does not contain target field: " + target);
 							}
 						} else {
 							ignoredKinds.add(kind);
@@ -177,7 +177,7 @@ public class ReflectionTraceInfo {
 			Scene.v().loadBasicClasses();
 			if(!Scene.v().containsClass(className)) {
 				//throw new RuntimeException("Trace file refers to unknown class: "+className);
-				G.v().out.println("CHORD: Scene does not contain class: " + className);
+				G.v().out.println("PETABLOX: Scene does not contain class: " + className);
 				return methodsWithRightName;
 			}
 		}
@@ -192,7 +192,7 @@ public class ReflectionTraceInfo {
 
 		if(methodsWithRightName.isEmpty()) {
 			//throw new RuntimeException("Trace file refers to unknown method with name "+methodName+" in Class "+className);
-			G.v().out.println("CHORD: Could not find any method with name: " + methodName + " in class " + className);
+			G.v().out.println("PETABLOX: Could not find any method with name: " + methodName + " in class " + className);
 			return methodsWithRightName;
 		} else if(methodsWithRightName.size()==1) {
 			return Collections.singleton(methodsWithRightName.iterator().next());
