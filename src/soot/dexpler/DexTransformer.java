@@ -29,6 +29,7 @@ import soot.ArrayType;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.Local;
+import soot.NullType;
 import soot.Type;
 import soot.Unit;
 import soot.Value;
@@ -113,8 +114,7 @@ public abstract class DexTransformer extends BodyTransformer {
 		return localDefs.getDefsOf(l);
 	}
 
-	protected Type findArrayType(/*ExceptionalUnitGraph g,*/
-			LocalDefs localDefs, LocalUses localUses,
+	protected Type findArrayType(LocalDefs localDefs,
 			Stmt arrayStmt, int depth, Set<Unit> alreadyVisitedDefs) {
 		ArrayRef aRef = null;
 		if (arrayStmt.containsArrayRef()) {
@@ -143,6 +143,7 @@ public abstract class DexTransformer extends BodyTransformer {
 		// We should find an answer only by processing the first item of the
 		// list
 		Type aType = null;
+		int nullDefCount = 0;
 		for (Unit baseDef : defsOfaBaseList) {
 			Debug.printDbg("dextransformer: ", baseDef);
 			if (alreadyVisitedDefs.contains(baseDef))
@@ -168,14 +169,15 @@ public abstract class DexTransformer extends BodyTransformer {
 					} else {
 						return t;
 					}
-				} else if (r instanceof ArrayRef) {
+				}
+				else if (r instanceof ArrayRef) {
 					ArrayRef ar = (ArrayRef) r;
 					if (ar.getType().equals(".unknown")
 							|| ar.getType().toString().equals("unknown")) { // ||
 																			// ar.getType())
 																			// {
 						System.out.println("second round from stmt: " + stmt);
-						Type t = findArrayType(localDefs, localUses, stmt,
+						Type t = findArrayType(localDefs, stmt,
 								++depth, newVisitedDefs); // TODO: which type should be
 											// returned?
 						if (t instanceof ArrayType) {
@@ -200,7 +202,8 @@ public abstract class DexTransformer extends BodyTransformer {
 							return t;
 						}
 					}
-				} else if (r instanceof NewArrayExpr) {
+				}
+				else if (r instanceof NewArrayExpr) {
 					NewArrayExpr expr = (NewArrayExpr) r;
 					Type t = expr.getBaseType();
 					Debug.printDbg("atype newarrayexpr: ", t);
@@ -210,7 +213,8 @@ public abstract class DexTransformer extends BodyTransformer {
 					} else {
 						return t;
 					}
-				} else if (r instanceof CastExpr) {
+				}
+				else if (r instanceof CastExpr) {
 					Type t = (((CastExpr) r).getCastType());
 					Debug.printDbg("atype cast: ", t);					
 					if (t instanceof ArrayType) {
@@ -223,7 +227,8 @@ public abstract class DexTransformer extends BodyTransformer {
 					} else {
 						return t;
 					}
-				} else if (r instanceof InvokeExpr) {
+				}
+				else if (r instanceof InvokeExpr) {
 					Type t = ((InvokeExpr) r).getMethodRef().returnType();
 					Debug.printDbg("atype invoke: ", t);
 					if (t instanceof ArrayType) {
@@ -238,9 +243,10 @@ public abstract class DexTransformer extends BodyTransformer {
 					}
 				// introduces alias. We look whether there is any type
 				// information associated with the alias.
-				} else if (r instanceof Local) {
+				}
+				else if (r instanceof Local) {
 					Debug.printDbg("atype alias: ", stmt);
-					Type t = findArrayType(localDefs, localUses, stmt,
+					Type t = findArrayType(localDefs, stmt,
 							++depth, newVisitedDefs);
 					if (depth == 0) {
 						aType = t;
@@ -249,8 +255,15 @@ public abstract class DexTransformer extends BodyTransformer {
 						// return t;
 						aType = t;
 					}
-				} else if (r instanceof Constant) {
-				} else {
+				}
+				else if (r instanceof Constant) {
+					// If the right side is a null constant, we might have a
+					// case of broken code, e.g.,
+					//	a = null;
+					//	a[12] = 42;
+					nullDefCount++;
+				}
+				else {
 					throw new RuntimeException(
 							"ERROR: def statement not possible! " + stmt);
 				}
@@ -275,10 +288,16 @@ public abstract class DexTransformer extends BodyTransformer {
 			    break;
 		} // loop
 		
-		if (depth == 0 && aType == null)
-			throw new RuntimeException(
-					"ERROR: could not find type of array from statement '"
-							+ arrayStmt + "'");
+		if (depth == 0 && aType == null) {
+			if (nullDefCount == defsOfaBaseList.size()) {
+				return NullType.v();
+			}
+			else {
+				throw new RuntimeException(
+						"ERROR: could not find type of array from statement '"
+								+ arrayStmt + "'");
+			}
+		}
 		else
 			return aType;
 	}

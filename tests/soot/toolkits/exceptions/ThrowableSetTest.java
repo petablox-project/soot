@@ -21,6 +21,7 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
 import soot.AnySubType;
+import soot.G;
 import soot.RefLikeType;
 import soot.RefType;
 import soot.Scene;
@@ -30,6 +31,7 @@ import soot.toolkits.exceptions.ExceptionTestUtility.ExceptionHashSet;
 public class ThrowableSetTest {
 
 	static {
+		G.reset();
 		Scene.v().loadBasicClasses();
 	}
 
@@ -211,7 +213,7 @@ public class ThrowableSetTest {
 	public static void setUp() {
 		expectedSizeToSets = new ExpectedSizeToSets();
 		expectedMemoizations = new ExpectedMemoizations();
-		util = new ExceptionTestUtility(System.getProperty("sun.boot.class.path"));
+		util = new ExceptionTestUtility();
 	}
 
 	/**

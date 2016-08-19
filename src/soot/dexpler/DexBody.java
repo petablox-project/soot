@@ -26,6 +26,7 @@ package soot.dexpler;
 
 import static soot.dexpler.instructions.InstructionFactory.fromInstruction;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.ExceptionHandler;
@@ -58,6 +60,7 @@ import soot.RefType;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
+import soot.Timer;
 import soot.Trap;
 import soot.Type;
 import soot.Unit;
@@ -72,7 +75,6 @@ import soot.dexpler.instructions.OdexInstruction;
 import soot.dexpler.instructions.PseudoInstruction;
 import soot.dexpler.instructions.RetypeableInstruction;
 import soot.dexpler.typing.DalvikTyper;
-import soot.dexpler.typing.Validate;
 import soot.javaToJimple.LocalGenerator;
 import soot.jimple.AssignStmt;
 import soot.jimple.CastExpr;
@@ -87,6 +89,7 @@ import soot.jimple.Jimple;
 import soot.jimple.JimpleBody;
 import soot.jimple.NeExpr;
 import soot.jimple.NullConstant;
+import soot.jimple.NumericConstant;
 import soot.jimple.internal.JIdentityStmt;
 import soot.jimple.toolkits.base.Aggregator;
 import soot.jimple.toolkits.scalar.ConditionalBranchFolder;
@@ -97,6 +100,7 @@ import soot.jimple.toolkits.scalar.LocalNameStandardizer;
 import soot.jimple.toolkits.scalar.NopEliminator;
 import soot.jimple.toolkits.scalar.UnreachableCodeEliminator;
 import soot.jimple.toolkits.typing.TypeAssigner;
+import soot.options.Options;
 import soot.toolkits.exceptions.TrapTightener;
 import soot.toolkits.scalar.LocalPacker;
 import soot.toolkits.scalar.LocalSplitter;
@@ -133,6 +137,7 @@ public class DexBody  {
     private RefType declaringClassType;
     
     private final DexFile dexFile;
+    private final Method method;
 
     // detect array/instructions overlapping obfuscation
     private ArrayList<PseudoInstruction> pseudoInstructionData = new ArrayList<PseudoInstruction>();
@@ -211,6 +216,7 @@ public class DexBody  {
         }
 
         this.dexFile = dexFile;
+        this.method = method;
     }
     
     /**
@@ -344,6 +350,13 @@ public class DexBody  {
      * @param m the SootMethod that contains this body
      */
     public Body jimplify(Body b, SootMethod m) {
+
+		Timer t_whole_jimplification = new Timer();
+		Timer t_num = new Timer();
+		Timer t_null = new Timer();
+
+		t_whole_jimplification.start();
+
         jBody = (JimpleBody)b;
         localGenerator = new LocalGenerator(jBody);
         deferredInstructions = new ArrayList<DeferableInstruction>();
@@ -422,10 +435,19 @@ public class DexBody  {
         final boolean isOdex = dexFile instanceof DexBackedDexFile ?
         		((DexBackedDexFile) dexFile).isOdexFile() : false;
         
+        ClassPath cp = null;
+        if (isOdex) {
+	        String[] sootClasspath = Options.v().soot_classpath().split(File.pathSeparator);
+	        List<String> classpathList = new ArrayList<String>();
+	        for (String str : sootClasspath)
+	        	classpathList.add(str);
+	        cp = ClassPath.fromClassPath(classpathList, classpathList, dexFile, -1, false);
+        }
+
         int prevLineNumber = -1;
         for(DexlibAbstractInstruction instruction : instructions) {
         	if (isOdex && instruction instanceof OdexInstruction)
-        		((OdexInstruction) instruction).deOdex(dexFile);
+        		((OdexInstruction) instruction).deOdex(dexFile, method, cp);
             if (dangling != null) {
                 dangling.finalize(this, instruction);
                 dangling = null;
@@ -475,7 +497,7 @@ public class DexBody  {
 	       will not be split. Hence we remove all dead code here.
          */
 
-        Debug.printDbg("body before any transformation : \n", jBody);
+		Debug.printDbg("body before any transformation : ", m, "\n", jBody);
         
         Debug.printDbg("\nbefore splitting");
         Debug.printDbg("",(Body)jBody);
@@ -519,6 +541,14 @@ public class DexBody  {
 //        }
   		
         if (IDalvikTyper.ENABLE_DVKTYPER) {
+
+			DexReturnValuePropagator.v().transform(jBody);
+			getCopyPopagator().transform(jBody);
+			DexNullThrowTransformer.v().transform(jBody);
+			DalvikTyper.v().typeUntypedConstrantInDiv(jBody);
+			DeadAssignmentEliminator.v().transform(jBody);
+			UnusedLocalEliminator.v().transform(jBody);
+
           Debug.printDbg("[DalvikTyper] resolving typing constraints...");
           DalvikTyper.v().assignType(jBody);
           Debug.printDbg("[DalvikTyper] resolving typing constraints... done.");
@@ -526,19 +556,25 @@ public class DexBody  {
           jBody.validateUses();
           jBody.validateValueBoxes();
           //jBody.checkInit();
-          Validate.validateArrays(jBody);
+			//Validate.validateArrays(jBody);
           //jBody.checkTypes();
           //jBody.checkLocals();
           Debug.printDbg("\nafter Dalvik Typer");
 
         } else {
+			t_num.start();
         	DexNumTransformer.v().transform (jBody);
+			t_num.end();
         	
         	DexReturnValuePropagator.v().transform(jBody);
             getCopyPopagator().transform(jBody);
         	
         	DexNullThrowTransformer.v().transform(jBody);
+
+			t_null.start();
         	DexNullTransformer.v().transform(jBody);
+			t_null.end();
+
         	DexIfTransformer.v().transform(jBody);
         	
         	DeadAssignmentEliminator.v().transform(jBody);
@@ -591,6 +627,20 @@ public class DexBody  {
                                 continue;
                             expr.setOp2(NullConstant.v());
                         } else if (op1 instanceof Local && op2 instanceof Local) {
+							// nothing to do
+						} else if (op1 instanceof Constant && op2 instanceof Constant) {
+
+							if (op1 instanceof NullConstant && op2 instanceof NumericConstant) {
+								IntConstant nc = (IntConstant) op2;
+								if (nc.value != 0)
+									throw new RuntimeException("expected value 0 for int constant. Got " + expr);
+								expr.setOp2(NullConstant.v());
+							} else if (op2 instanceof NullConstant && op1 instanceof NumericConstant) {
+								IntConstant nc = (IntConstant) op1;
+								if (nc.value != 0)
+									throw new RuntimeException("expected value 0 for int constant. Got " + expr);
+								expr.setOp1(NullConstant.v());
+							}
                         } else {
                             throw new RuntimeException("error: do not handle if: "+ u);
                         }
@@ -672,6 +722,9 @@ public class DexBody  {
         UnusedLocalEliminator.v().transform(jBody);
         NopEliminator.v().transform(jBody);
         
+        // Remove unnecessary chains of return statements
+        DexReturnPacker.v().transform(jBody);
+        
         for (Unit u: jBody.getUnits()) {
             if (u instanceof AssignStmt) {
                 AssignStmt ass = (AssignStmt)u;
@@ -720,6 +773,11 @@ public class DexBody  {
             }
         }
         
+		t_whole_jimplification.end();
+		Debug.printDbg("timer whole jimlification: ", t_whole_jimplification.getTime());
+		Debug.printDbg("timer num: ", t_num.getTime());
+		Debug.printDbg("timer null: ", t_null.getTime());
+
         return jBody;
     }
 

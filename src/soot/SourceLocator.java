@@ -161,6 +161,7 @@ public class SourceLocator
     public List<String> classPath() { return classPath; }
     public void invalidateClassPath() {
         classPath = null;
+        dexClassIndex = null;
     }
 
     private List<String> sourcePath;
@@ -180,6 +181,8 @@ public class SourceLocator
     
     private ClassSourceType getClassSourceType(String path) {
         File f = new File(path);
+        if (!f.exists() && !Options.v().ignore_classpath_errors())
+        	throw new RuntimeException(path + " does not exists");
         if (f.isFile() && f.canRead()) {
             if (path.endsWith(".zip"))
                 return ClassSourceType.zip;
@@ -207,7 +210,7 @@ public class SourceLocator
 					ZipEntry entry = entries.nextElement();
 					String entryName = entry.getName();
 					// We are dealing with an apk file
-					if (entryName.equals("classes.dex"))
+					if (entryName.endsWith(".dex"))
 						classes.addAll(DexClassProvider.classesOfDex(new File(aPath)));
 				}
 				archive.close();			
